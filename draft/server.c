@@ -7,71 +7,71 @@
 #include <pthread.h>
 #include <signal.h>
 
-#define PORT 5001          // Port number for the server
-#define MAX_CLIENTS 10     // Maximum number of concurrent clients
-#define BUFFER_SIZE 4096   // Size of receive buffer
+#define PORT 5001          // Número da porta para o servidor
+#define MAX_CLIENTS 10     // Número máximo de clientes concorrentes
+#define BUFFER_SIZE 4096   // Tamanho do buffer de recebimento
 
-volatile int running = 1;  // Variable to control server loop
+volatile int running = 1;  // Variável para controlar o loop do servidor
 
-int true = 1;
+int verdadeiro = 1;
 
-void error(const char *msg) {
+void erro(const char *msg) {
     perror(msg);
     exit(1);
 }
 
-// Signal handler for SIGINT
-void sigint_handler(int signum) {
-    printf("Received SIGINT, shutting down server...\n");
+// Manipulador de sinal para SIGINT
+void manipulador_sigint(int signum) {
+    printf("Recebido SIGINT, encerrando o servidor...\n");
     running = 0;
 }
 
-// Function to handle client requests
-void *handle_client(void *arg) {
-    int newsockfd = *((int *) arg);
+// Função para lidar com as solicitações dos clientes
+void *lidar_com_cliente(void *arg) {
+    int novo_sockfd = *((int *) arg);
     char buffer[BUFFER_SIZE];
 
     while (running) {
         memset(buffer, 0, sizeof(buffer));
 
-        int n = recv(newsockfd, buffer, sizeof(buffer) - 1, 0);
+        int n = recv(novo_sockfd, buffer, sizeof(buffer) - 1, 0);
         if (n < 0) {
-            error("ERROR reading from socket");
+            erro("ERRO lendo do socket");
             continue;
         } else if (n == 0) {
-            printf("Client disconnected\n");
+            printf("Cliente desconectado\n");
             continue;
 
         }
 
-        // Parse JSON object
+        // Analisar objeto JSON
         json_object *json_obj = json_tokener_parse(buffer);
         if (json_obj == NULL) {
-            printf("Malformed JSON object.\n");
+            printf("Objeto JSON inválido.\n");
             continue;
         }
 
-        // Extract name and email fields
-        json_object *name_obj, *email_obj;
-        if (json_object_object_get_ex(json_obj, "name", &name_obj) &&
+        // Extrair campos de nome e e-mail
+        json_object *nome_obj, *email_obj;
+        if (json_object_object_get_ex(json_obj, "nome", &nome_obj) &&
             json_object_object_get_ex(json_obj, "email", &email_obj)) {
-            const char *name = json_object_get_string(name_obj);
+            const char *nome = json_object_get_string(nome_obj);
             const char *email = json_object_get_string(email_obj);
 
-            printf("Received JSON object:\n");
-            printf("Name: %s\n", name);
+            printf("Objeto JSON recebido:\n");
+            printf("Nome: %s\n", nome);
             printf("Email: %s\n", email);
         } else {
-            printf("Invalid JSON object format\n");
+            printf("Formato de objeto JSON inválido\n");
         }
 
-        json_object_put(json_obj); // Release JSON object
+        json_object_put(json_obj); // Liberar objeto JSON
 
         if (n == 0)
             break;
     }
 
-    close(newsockfd);
+    close(novo_sockfd);
 
     return NULL;
 }
@@ -81,82 +81,81 @@ struct sockaddr_in serv_addr, cli_addr;
 int sockfd, num_clients;
 
 int sockfds[MAX_CLIENTS];
-pthread_t threads[MAX_CLIENTS]; // Array to store thread IDs
+pthread_t threads[MAX_CLIENTS]; // Array para armazenar IDs de threads
 
-void *accept_new_clients() {
+void *aceitar_novos_clientes() {
     while (running) {
-        int newsockfd;
+        int novo_sockfd;
         clilen = (socklen_t) sizeof(cli_addr);
-        newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
-        if (newsockfd < 0)
-            error("ERROR on accept");
+        novo_sockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
+        if (novo_sockfd < 0)
+            erro("ERRO ao aceitar");
 
         if (num_clients >= MAX_CLIENTS) {
-            printf("Maximum number of clients reached, closing connection...\n");
-            close(newsockfd);
+            printf("Número máximo de clientes alcançado, fechando a conexão...\n");
+            close(novo_sockfd);
         } else {
-            // Create a new thread to handle the client request
-            int ret = pthread_create(&threads[num_clients], NULL, handle_client, &newsockfd);
+            // Criar thread para lidar com a solicitação do cliente
+            int ret = pthread_create(&threads[num_clients], NULL, lidar_com_cliente, &novo_sockfd);
             if (ret != 0) {
-                printf("Failed to create thread for client, closing connection...\n");
-                close(newsockfd);
+                printf("Falha ao criar thread para o cliente, fechando a conexão...\n");
+                close(novo_sockfd);
             } else {
-                printf("Client connected, thread created successfully!\n");
-                sockfds[num_clients] = newsockfd;
+                printf("Cliente conectado, criada nova thread para lidar com a solicitação\n");
+                sockfds[num_clients] = novo_sockfd;
                 num_clients++;
             }
         }
     }
+    return NULL;
 }
 
 int main() {
-    // Number of active threads
-    num_clients = 0;
+    signal(SIGINT, manipulador_sigint); // Registrar manipulador de sinal SIGINT
+    printf("Iniciando o servidor...\n");
 
-    // Register SIGINT signal handler
-    signal(SIGINT, sigint_handler);
-
+    // Criar um socket TCP
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
-        error("ERROR opening socket");
+        erro("ERRO abrindo o socket");
 
-    memset((char *) &serv_addr, 0, sizeof(serv_addr));
-
+    // Configurar a estrutura do endereço do servidor
+    bzero((char *) &serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
     serv_addr.sin_port = htons(PORT);
 
+    // Conectar o socket ao endereço do servidor
     if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
-        error("ERROR on binding");
+        erro("ERRO conectando");
 
+    // Iniciar a escuta do socket
     listen(sockfd, 5);
 
-    printf("Server listening on port %d...\n", PORT);
+    printf("Servidor iniciado na porta %d\n", PORT);
 
-    pthread_t accept_new_clients_thread;
-    pthread_create(&accept_new_clients_thread, NULL, accept_new_clients, NULL);
-
-    while(running) {
-        // do nothing, just wait
+    // Criar thread para aceitar novos clientes
+    pthread_t accept_thread;
+    int ret = pthread_create(&accept_thread, NULL, aceitar_novos_clientes, NULL);
+    if (ret != 0) {
+        printf("Falha ao criar thread de aceitação de clientes, encerrando o servidor...\n");
+        close(sockfd);
+        exit(1);
     }
 
-    pthread_cancel(accept_new_clients_thread);
+    // Aguardar a sinalização para encerrar o servidor
+    while (running) sleep(1);
 
-    // Closes clients' connections
+    printf("Encerrando o servidor...\n");
+
+    // Fechar conexões com os clientes
     for (int i = 0; i < num_clients; i++) {
+        pthread_cancel(threads[i]);
         close(sockfds[i]);
     }
 
-    // Closes threads
-    for (int i = 0; i < num_clients; i++) {
-        pthread_cancel(threads[i]);
-    }
-
-    // Signal to kernel it can reuse the address
-    setsockopt(sockfd,SOL_SOCKET,SO_REUSEADDR,&true,sizeof(int));
+    // Fechar o socket do servidor
     close(sockfd);
-
-    printf("Server shut down successfully.\n");
 
     return 0;
 }
