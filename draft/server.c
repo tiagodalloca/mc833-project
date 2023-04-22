@@ -6,7 +6,7 @@
 #include <netinet/in.h>
 #include <pthread.h>
 
-#define PORT 5000          // Port number for the server
+#define PORT 5001          // Port number for the server
 #define MAX_CLIENTS 10     // Maximum number of concurrent clients
 #define BUFFER_SIZE 4096   // Size of receive buffer
 
@@ -28,12 +28,23 @@ void *handle_client(void *arg)
 
       int n = recv(newsockfd, buffer, sizeof(buffer) - 1, 0);
       if (n < 0)
-        error("ERROR reading from socket");
+        {
+          error("ERROR reading from socket");
+          break;
+        }
+      else if (n == 0)
+        {
+          printf("Client disconnected\n");
+          break;
+        }
 
       // Parse JSON object
       json_object *json_obj = json_tokener_parse(buffer);
       if (json_obj == NULL)
-        error("ERROR parsing JSON");
+        {
+          printf("Malformed JSON object, closing connection...\n");
+          break;
+        }
 
       // Extract name and email fields
       json_object *name_obj, *email_obj;
@@ -53,9 +64,6 @@ void *handle_client(void *arg)
         }
 
       json_object_put(json_obj); // Release JSON object
-
-      if (n == 0)
-        break;
     }
 
   close(newsockfd);
@@ -107,15 +115,14 @@ int main()
 
           printf("Client connected, spawning thread %ld\n", threads[num_threads]);
 
-          // Detach the thread so it can run independently
+          // Detach the thread so it doesn't need to be explicitly joined
           pthread_detach(threads[num_threads]);
-
           num_threads++;
         }
     }
-
+  
   close(sockfd);
 
   return 0;
-
 }
+
