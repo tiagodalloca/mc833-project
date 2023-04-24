@@ -1,1 +1,5 @@
 { "nome": "Alice", "sobrenome": "Smith", "cidade": "San Francisco", "formacao": "Data Science", "ano": "2023", "email": "alicesmith@example.com", "habilidades": "R, SQL, Python" }
+
+{"command":"new_user","payload":{"nome":"Lamb'U","sobrenome":"Hola","cidade":"Los Angeles","formacao":"Computer Engineering","ano":"2023","email":"lambuhola@example.com","habilidades":"Python, JavaScript, Ruby"}}
+
+{"command":"list_all_users", "payload":{}}

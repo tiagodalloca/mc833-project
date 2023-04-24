@@ -1,0 +1,21 @@
+{"command":"delete_user", "payload":"lambuhola@example.com"}
+
+
+{"command":"query_users", "payload":{"email": "johndoe@example.com"}}
+
+{"command":"new_user", "payload":{ "nome": "Jane", "sobrenome": "Smith", "cidade": "New York", "formacao": "Computer Science", "ano": "2022", "email": "janesmith@example.com", "habilidades": "JavaScript, Ruby, PHP" }}
+
+{"command":"query_users", "payload":{"cidade": "New York"}}
+
+{"command":"query_users", "payload":{"formacao": "Computer Science"}}
+
+{"command":"new_user", "payload":{ "nome": "Bob", "sobrenome": "Johnson", "cidade": "Los Angeles", "formacao": "Computer Science", "ano": "2023", "email": "bobjohnson@example.com", "habilidades": "Java, C#, Python" }}
+
+{"command":"query_users", "payload":{"habilidades": "Java"}}
+
+{"command":"query_users", "payload":{"habilidades": "c++"}}
+
+{"command":"list_user", "payload":"johndoe@example.com"}
+
+{"command":"list_user", "payload":"asdf"}
+
