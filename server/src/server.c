@@ -8,12 +8,12 @@
 #include <signal.h>
 #include <dirent.h>
 
-#define PORT 5000                       // Número da porta para o servidor
-#define MAX_CLIENTS 10                  // Número máximo de clientes concorrentes
-#define BUFFER_SIZE 4096                // Tamanho do buffer de recebimento
-#define DB_USERS_PATH "../db/users/"    // Caminho pros arquivos dos usuários
+#define PORTA 5000                      // Número da porta para o servidor
+#define MAX_CLIENTES 10                  // Número máximo de clientes concorrentes
+#define TAMANHO_BUFFER 4096                // Tamanho do buffer de recebimento
+#define PASTA_USUARIOS "../db/users/"    // Caminho pros arquivos dos usuários
 
-volatile int running = 1;  // Variável para controlar o loop do servidor
+volatile int rodando = 1;  // Controla o loop do servidor
 
 int verdadeiro = 1;
 
@@ -22,16 +22,16 @@ void erro(const char *msg) {
     exit(1);
 }
 
-// Manipulador de sinal para SIGINT
+// Manipulador de sinal para SIGINT utilizado na main()
 void manipulador_sigint(int signum) {
     printf("Recebido SIGINT, encerrando o servidor...\n");
-    running = 0;
+    rodando = 0;
 }
 
 const char *listar_todos_usuarios(const char *caminho) {
     DIR *dir;
     struct dirent *ent;
-    json_object *users_array = json_object_new_array(); // Create JSON array object
+    json_object *users_array = json_object_new_array(); // Cria lista de objetos JSON
 
     if ((dir = opendir(caminho)) == NULL) {
         perror("Não foi possível abrir o diretório");
@@ -39,7 +39,7 @@ const char *listar_todos_usuarios(const char *caminho) {
     }
 
     while ((ent = readdir(dir)) != NULL) {
-        // Ignorar . e ..
+        // Ignora . e ..
         if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
             continue;
         }
@@ -53,20 +53,20 @@ const char *listar_todos_usuarios(const char *caminho) {
             continue;
         }
 
-        // Read user information from file and create JSON object
+        // Lê as informações do usuário do arquivo e cria um objeto JSON.
         json_object *user_obj = json_object_new_object();
         json_object_object_add(user_obj, "email", json_object_new_string(ent->d_name));
 
         char buffer[10000];
         fgets(buffer, sizeof(buffer), fp);
         json_object *json_obj = json_tokener_parse(buffer);
-        json_object_array_add(users_array, json_obj); // Add user object to JSON array
+        json_object_array_add(users_array, json_obj); // Adiciona o objeto do usuário na lista de JSON 
         fclose(fp);
     }
 
     closedir(dir);
 
-    // Convert JSON array to string and return
+    // Converte lista JSON em string e retorna
     const char *json_str = json_object_to_json_string(users_array);
 
     size_t len = strlen(json_str);
@@ -74,12 +74,12 @@ const char *listar_todos_usuarios(const char *caminho) {
     strncpy(resp, json_str, len);
     resp[len] = '\0';
 
-    json_object_put(users_array); // Release JSON array memory
+    json_object_put(users_array); // Libera a lista da memória
 
     return resp;
 }
 
-// Function to delete user file based on email
+// Deleta usuário com base no email fornecido (deleta o arquivo do usuário)
 void deletar_usuario(const char *email, const char *caminho) {
     char caminho_completo[100];
     sprintf(caminho_completo, "%s/%s.json", caminho, email);
@@ -91,22 +91,24 @@ void deletar_usuario(const char *email, const char *caminho) {
     }
 }
 
+// Função auxiliar utilizada na busca por parâmetro
 int busca_substring(const char *texto, const char *subtexto) {
     unsigned int tamanho_texto = strlen(texto);
     unsigned int tamanho_subtexto = strlen(subtexto);
     if (tamanho_texto < tamanho_subtexto) {
-        return 0; // Retorna falso se o texto é menor que o subtexto
+        return 0; // Texto é menor que o subtexto
     }
     for (size_t i = 0; i <= tamanho_texto - tamanho_subtexto; i++) {
         if (strncasecmp(texto + i, subtexto, tamanho_subtexto) == 0) {
-            return 1; // Retorna verdadeiro se encontrar uma correspondência de substring
+            return 1; // Substring encontrada
         }
     }
-    return 0; // Retorna falso se nenhuma correspondência de substring for encontrada
+    return 0; // Substring não encontrada
 }
 
+// Busca por parâmetro
 const char *query_usuarios(const json_object *payload, const char *caminho) {
-    json_object *user_array = json_object_new_array(); // Create a new JSON array
+    json_object *user_array = json_object_new_array(); // Cria a lista de JSON
 
     DIR *dir;
     struct dirent *ent;
@@ -117,7 +119,7 @@ const char *query_usuarios(const json_object *payload, const char *caminho) {
     }
 
     while ((ent = readdir(dir)) != NULL) {
-        // Ignorar . e ..
+        // Ignora . e ..
         if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
             continue;
         }
@@ -133,9 +135,9 @@ const char *query_usuarios(const json_object *payload, const char *caminho) {
 
         char buffer[4096];
         while (fgets(buffer, sizeof(buffer), fp)) {
-            json_object *user = json_tokener_parse(buffer); // Parse JSON from file
+            json_object *user = json_tokener_parse(buffer); // Parse JSON
             if (user != NULL) {
-                int match = 1; // Flag to indicate if user matches fields in payload
+                int match = 1; // Flag que indica se usuario da match nos parâmetros do payload
                 json_object_object_foreach(payload, key, val) {
                     json_object *user_value = json_object_object_get(user, key);
                     if (user_value != NULL) {
@@ -143,24 +145,24 @@ const char *query_usuarios(const json_object *payload, const char *caminho) {
                         const char *payload_value_str = json_object_get_string(val);
                         if (strcasecmp(key, "habilidades") == 0) {
                             if (busca_substring(user_value_str, payload_value_str) == NULL) {
-                                match = 0; // Set match flag to false if habilidades do not partially match
-                                break; // Break loop if a mismatch is found
+                                match = 0; // Para o campo habilidades se o parametro passado no payload não for SUBSTRING dele, flag = False e Break
+                                break;
                             }
                         }
                         else if (strcmp(user_value_str, payload_value_str) != 0) {
-                            match = 0; // Set match flag to false if values are not equal
-                            break; // Break loop if a mismatch is found
+                            match = 0; // Para demais campos, se o do payload não for igual ao do usuário, flag = False e Break
+                            break;
                         }
                     } else {
-                        match = 0; // Set match flag to false if key not found in user
-                        break; // Break loop if key not found in user
+                        match = 0; // Caso em que o campo passado como filtro não existe não existe no usuário
+                        break;
                     }
                 }
                 if (match) {
-                    // Add user to the JSON array
+                    // Se deu match, adiciona usuário na lista de resposta
                     json_object_array_add(user_array, user);
                 } else {
-                    json_object_put(user); // Free JSON object if not added to array
+                    json_object_put(user); // da Free no JSON se não for adicionado na lista
                 }
             }
         }
@@ -170,21 +172,23 @@ const char *query_usuarios(const json_object *payload, const char *caminho) {
 
     closedir(dir);
 
-    const char *json_str = json_object_to_json_string(user_array); // Convert JSON array to string
+    const char *json_str = json_object_to_json_string(user_array); // Converte JSON array em string
 
     size_t len = strlen(json_str);
     char *resp = (char *)malloc(len + 1);
     strncpy(resp, json_str, len);
     resp[len] = '\0';
 
-    json_object_put(user_array); // Release JSON array memory
+    json_object_put(user_array); // Libera a lista da memória
 
     return resp;
 }
 
+// Retorna usuário a partir do email
 const char *listar_usuario(const char *email, const char *caminho) {
     char caminho_completo[100];
-    sprintf(caminho_completo, "%s/%s.json", caminho, email); // Create complete file path for the given email
+    // Como o nome do arquivo é criado a partir do email do usuário, não é necessário procurar pelo usuário certo, só recriar o nome do arquivo através do email passado e abri-lo
+    sprintf(caminho_completo, "%s/%s.json", caminho, email);
 
     FILE *fp = fopen(caminho_completo, "r");
     if (fp == NULL) {
@@ -196,9 +200,9 @@ const char *listar_usuario(const char *email, const char *caminho) {
     json_object *user = NULL;
 
     while (fgets(buffer, sizeof(buffer), fp)) {
-        user = json_tokener_parse(buffer); // Parse JSON from file
+        user = json_tokener_parse(buffer); // Parse JSON do arquivo e coloca na variavel user
         if (user != NULL) {
-            break; // Break loop if user is found
+            break;
         }
     }
 
@@ -209,21 +213,21 @@ const char *listar_usuario(const char *email, const char *caminho) {
         return NULL;
     }
 
-    const char *json_str = json_object_to_json_string(user); // Convert JSON object to string
+    const char *json_str = json_object_to_json_string(user); // Converte objeto JSON em string
 
     size_t len = strlen(json_str);
     char *resp = (char *)malloc(len + 1);
     strncpy(resp, json_str, len);
     resp[len] = '\0';
 
-    json_object_put(user); // Release JSON object memory
+    json_object_put(user); // Libera JSON da memória
 
     return resp;
 }
 
-// Cria um arquivo e armazena o json de entrada nele
+// Novo usuário: Cria um arquivo e armazena o json de entrada nele
 void armazenar_info_usuario(json_object *json_obj, const char *caminho) {
-    // Get email from json object
+    // Pega o email do JSON
     json_object *email_obj = NULL;
     if (json_object_object_get_ex(json_obj, "email", &email_obj) == 0) {
         printf("Campo 'email' não encontrado no objeto JSON\n");
@@ -232,7 +236,7 @@ void armazenar_info_usuario(json_object *json_obj, const char *caminho) {
 
     const char *email = json_object_get_string(email_obj);
 
-    // Criar arquivo com o email como nome do arquivo
+    // Cria arquivo com o email como seu nome
     char nome_arquivo[100];
     sprintf(nome_arquivo, "%s/%s.json", caminho, email);
 
@@ -242,20 +246,21 @@ void armazenar_info_usuario(json_object *json_obj, const char *caminho) {
         return;
     }
 
-    // Escrever objeto JSON no arquivo
+    // Escreve objeto JSON no arquivo
     const char *json_str = json_object_to_json_string(json_obj);
     fprintf(fp, "%s", json_str);
 
-    // Fechar arquivo
+    // Fecha arquivo
     fclose(fp);
 }
 
-// Função para lidar com as solicitações dos clientes
+// Lida com as solicitações dos clientes (função que recebe os requests dos clientes)
+// recebe como entrada um JSON em formato de string.
 void *lidar_com_cliente(void *arg) {
     int novo_sockfd = *((int *) arg);
-    char buffer[BUFFER_SIZE];
+    char buffer[TAMANHO_BUFFER];
 
-    while (running) {
+    while (rodando) {
         memset(buffer, 0, sizeof(buffer));
 
         int n = recv(novo_sockfd, buffer, sizeof(buffer) - 1, 0);
@@ -268,7 +273,6 @@ void *lidar_com_cliente(void *arg) {
 
         }
 
-        // Parse JSON from received buffer
         json_object *json_obj = json_tokener_parse(buffer);
 
         if (json_obj == NULL) {
@@ -276,50 +280,53 @@ void *lidar_com_cliente(void *arg) {
             continue;
         }
 
-        // Extract "command" and "payload" from JSON
+        // Pega os parâmetros "command" and "payload" do JSON de entrada
+        // "command" é a operação a ser realizada e "payload" contém os atributos a serem utilizados nas operações
         json_object *command_obj, *payload_obj;
         if (json_object_object_get_ex(json_obj, "command", &command_obj) &&
             json_object_object_get_ex(json_obj, "payload", &payload_obj)) {
             const char *command = json_object_get_string(command_obj);
             json_object *payload = payload_obj;
 
-            if (strcmp(command, "new_user") == 0) {
-                // Create new user
-                armazenar_info_usuario(payload, DB_USERS_PATH);
-                // Send response to client
+            if (strcmp(command, "new_user") == 0) { // Cria novo usuário
+                armazenar_info_usuario(payload, PASTA_USUARIOS);
                 const char *response = "Novo usuário criado com sucesso!\n";
+                // Manda resposta pro cliente
                 send(novo_sockfd, response, strlen(response), 0);
-            } else if (strcmp(command, "list_all_users") == 0) {
-                // List all users
-                const char *response = listar_todos_usuarios(DB_USERS_PATH);
-                // Send response to client
+
+            } else if (strcmp(command, "list_all_users") == 0) {    // Lista todos os usuários
+                const char *response = listar_todos_usuarios(PASTA_USUARIOS); 
+                if (response == NULL) response = "Não há usuários cadastrados\n"; 
+                // Manda resposta pro cliente
                 send(novo_sockfd, response, strlen(response), 0);
-            } else if (strcmp(command, "delete_user") == 0) {
-                // Delete user
-                const char *email = json_object_get_string(payload);
-                deletar_usuario(email, DB_USERS_PATH);
-                // Send response to client
+
+            } else if (strcmp(command, "delete_user") == 0) {   // Deleta usuário
+                const char *email = json_object_get_string(payload); 
+                deletar_usuario(email, PASTA_USUARIOS); 
                 const char *response = "Usuário deletado com sucesso!\n";
+                // Manda resposta pro cliente
                 send(novo_sockfd, response, strlen(response), 0);
-            } else if (strcmp(command, "query_users") == 0) {
-                // Query users
-                const char *response = query_usuarios(payload, DB_USERS_PATH);
+
+            } else if (strcmp(command, "query_users") == 0) {   // Filtra usuários por um de seus atributos
+                const char *response = query_usuarios(payload, PASTA_USUARIOS);
+                if (response == NULL) response = "Não achamos ninguém com esse atributo\n";
+                // Manda resposta pro cliente 
                 send(novo_sockfd, response, strlen(response), 0);
-            } else if (strcmp(command, "list_user") == 0) {
-                // List user
+
+            } else if (strcmp(command, "list_user") == 0) {     // Devolve usuário com o devido email
                 const char *email = json_object_get_string(payload);
-                const char *response = listar_usuario(email, DB_USERS_PATH);
+                const char *response = listar_usuario(email, PASTA_USUARIOS);
                 if (response == NULL) response = "Não achamos ninguém com esse email\n";
+                // Manda resposta pro cliente 
                 send(novo_sockfd, response, strlen(response), 0);
-            } else {
-                // Invalid command
+
+            } else {    // Comando inválido
                 const char *response = "Comando inválido\n";
                 send(novo_sockfd, response, strlen(response), 0);
             }
 
-        } else {
-            // Invalid JSON format
-            const char *response = "Formato de objeto JSON inválido";
+        } else {    // Entrada inválida/formato do JSON de entrada errado
+            const char *response = "Entrada inválida/Formato de objeto JSON inválido\n";
             send(novo_sockfd, response, strlen(response), 0);
         }
 
@@ -335,22 +342,23 @@ unsigned int clilen;
 struct sockaddr_in serv_addr, cli_addr;
 int sockfd, num_clients;
 
-int sockfds[MAX_CLIENTS];
-pthread_t threads[MAX_CLIENTS]; // Array para armazenar IDs de threads
+int sockfds[MAX_CLIENTES];
+pthread_t threads[MAX_CLIENTES]; // Array para armazenar IDs de threads
 
+// Verifica se é possível e cria uma nova thread para lidar com o novo cliente
 void *aceitar_novos_clientes() {
-    while (running) {
+    while (rodando) {
         int novo_sockfd;
         clilen = (socklen_t) sizeof(cli_addr);
         novo_sockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
         if (novo_sockfd < 0)
             erro("ERRO ao aceitar");
 
-        if (num_clients >= MAX_CLIENTS) {
+        if (num_clients >= MAX_CLIENTES) {
             printf("Número máximo de clientes alcançado, fechando a conexão...\n");
             close(novo_sockfd);
         } else {
-            // Criar thread para lidar com a solicitação do cliente
+            // Cria thread para lidar com a solicitação do cliente
             int ret = pthread_create(&threads[num_clients], NULL, lidar_com_cliente, &novo_sockfd);
             if (ret != 0) {
                 printf("Falha ao criar thread para o cliente, fechando a conexão...\n");
@@ -365,6 +373,7 @@ void *aceitar_novos_clientes() {
     return NULL;
 }
 
+//Função teste que imprime todos os usuários cadastrados
 void imprimir_arquivos_na_pasta(const char* caminho) {
     DIR *dir;
     struct dirent *ent;
@@ -404,30 +413,30 @@ void imprimir_arquivos_na_pasta(const char* caminho) {
 }
 
 int main() {
-    signal(SIGINT, manipulador_sigint); // Registrar manipulador de sinal SIGINT
+    signal(SIGINT, manipulador_sigint); // Registra manipulador de sinal SIGINT
     printf("Iniciando o servidor e printando DB atual...\n");
 
-    imprimir_arquivos_na_pasta(DB_USERS_PATH); //colocar aqui o path pra pasta de users(DB_USERS_PATH); //colocar aqui o path pra pasta de users
+    imprimir_arquivos_na_pasta(PASTA_USUARIOS); //Chamada teste
 
-    // Criar um socket TCP
+    // Cria um socket TCP
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
         erro("ERRO abrindo o socket");
 
-    // Configurar a estrutura do endereço do servidor
+    // Configura a estrutura do endereço do servidor
     bzero((char *) &serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
-    serv_addr.sin_port = htons(PORT);
+    serv_addr.sin_port = htons(PORTA);
 
-    // Conectar o socket ao endereço do servidor
+    // Conecta o socket ao endereço do servidor
     if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
         erro("ERRO conectando");
 
-    // Iniciar a escuta do socket
+    // Inicia a escuta do socket
     listen(sockfd, 5);
 
-    printf("Servidor iniciado na porta %d\n", PORT);
+    printf("Servidor iniciado na porta %d\n", PORTA);
 
     // Criar thread para aceitar novos clientes
     pthread_t accept_thread;
@@ -438,18 +447,18 @@ int main() {
         exit(1);
     }
 
-    // Aguardar a sinalização para encerrar o servidor
-    while (running) sleep(1);
+    // Aguarda a sinalização para encerrar o servidor
+    while (rodando) sleep(1);
 
     printf("Encerrando o servidor...\n");
 
-    // Fechar conexões com os clientes
+    // Fecha conexões com os clientes
     for (int i = 0; i < num_clients; i++) {
         pthread_cancel(threads[i]);
         close(sockfds[i]);
     }
 
-    // Fechar o socket do servidor
+    // Fecha o socket do servidor
     close(sockfd);
 
     return 0;
