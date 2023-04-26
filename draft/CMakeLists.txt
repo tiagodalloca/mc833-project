@@ -6,7 +6,7 @@ project(my_project)
 set(CMAKE_C_STANDARD 11)
 
 # Add your source files
-set(SOURCE_FILES server2.c)
+set(SOURCE_FILES clientDraft.c)
 
 # Find the JSON-C library
 find_package(PkgConfig REQUIRED)

@@ -8,7 +8,7 @@
 #include <signal.h>
 #include <dirent.h>
 
-#define PORTA 5000                      // Número da porta para o servidor
+#define PORTA 5001                      // Número da porta para o servidor
 #define MAX_CLIENTES 10                  // Número máximo de clientes concorrentes
 #define TAMANHO_BUFFER 4096                // Tamanho do buffer de recebimento
 #define PASTA_USUARIOS "../db/users/"    // Caminho pros arquivos dos usuários
@@ -70,7 +70,7 @@ const char *listar_todos_usuarios(const char *caminho) {
     const char *json_str = json_object_to_json_string(users_array);
 
     size_t len = strlen(json_str);
-    char *resp = (char *)malloc(len + 1);
+    char *resp = (char *) malloc(len + 1);
     strncpy(resp, json_str, len);
     resp[len] = '\0';
 
@@ -148,8 +148,7 @@ const char *query_usuarios(const json_object *payload, const char *caminho) {
                                 match = 0; // Para o campo habilidades se o parametro passado no payload não for SUBSTRING dele, flag = False e Break
                                 break;
                             }
-                        }
-                        else if (strcmp(user_value_str, payload_value_str) != 0) {
+                        } else if (strcmp(user_value_str, payload_value_str) != 0) {
                             match = 0; // Para demais campos, se o do payload não for igual ao do usuário, flag = False e Break
                             break;
                         }
@@ -160,7 +159,23 @@ const char *query_usuarios(const json_object *payload, const char *caminho) {
                 }
                 if (match) {
                     // Se deu match, adiciona usuário na lista de resposta
-                    json_object_array_add(user_array, user);
+                    // Retrieve "nome" property from "user" object
+                    json_object *nome = NULL;
+                    json_object_object_get_ex(user, "nome", &nome);
+
+                    // Retrieve "email" property from "user" object
+                    json_object *email = NULL;
+                    json_object_object_get_ex(user, "email", &email);
+
+                    // Extract string values from retrieved properties
+                    const char *nome_str = json_object_get_string(nome);
+                    const char *email_str = json_object_get_string(email);
+
+                    json_object *new_user = json_object_new_object();
+                    json_object_object_add(new_user, "nome", nome);
+                    json_object_object_add(new_user, "email", email);
+
+                    json_object_array_add(user_array, new_user);
                 } else {
                     json_object_put(user); // da Free no JSON se não for adicionado na lista
                 }
@@ -175,7 +190,7 @@ const char *query_usuarios(const json_object *payload, const char *caminho) {
     const char *json_str = json_object_to_json_string(user_array); // Converte JSON array em string
 
     size_t len = strlen(json_str);
-    char *resp = (char *)malloc(len + 1);
+    char *resp = (char *) malloc(len + 1);
     strncpy(resp, json_str, len);
     resp[len] = '\0';
 
@@ -216,7 +231,7 @@ const char *listar_usuario(const char *email, const char *caminho) {
     const char *json_str = json_object_to_json_string(user); // Converte objeto JSON em string
 
     size_t len = strlen(json_str);
-    char *resp = (char *)malloc(len + 1);
+    char *resp = (char *) malloc(len + 1);
     strncpy(resp, json_str, len);
     resp[len] = '\0';
 
@@ -269,7 +284,7 @@ void *lidar_com_cliente(void *arg) {
             continue;
         } else if (n == 0) {
             printf("Cliente desconectado\n");
-            continue;
+            break;
 
         }
 
@@ -295,14 +310,14 @@ void *lidar_com_cliente(void *arg) {
                 send(novo_sockfd, response, strlen(response), 0);
 
             } else if (strcmp(command, "list_all_users") == 0) {    // Lista todos os usuários
-                const char *response = listar_todos_usuarios(PASTA_USUARIOS); 
-                if (response == NULL) response = "Não há usuários cadastrados\n"; 
+                const char *response = listar_todos_usuarios(PASTA_USUARIOS);
+                if (response == NULL) response = "Não há usuários cadastrados\n";
                 // Manda resposta pro cliente
                 send(novo_sockfd, response, strlen(response), 0);
 
             } else if (strcmp(command, "delete_user") == 0) {   // Deleta usuário
-                const char *email = json_object_get_string(payload); 
-                deletar_usuario(email, PASTA_USUARIOS); 
+                const char *email = json_object_get_string(payload);
+                deletar_usuario(email, PASTA_USUARIOS);
                 const char *response = "Usuário deletado com sucesso!\n";
                 // Manda resposta pro cliente
                 send(novo_sockfd, response, strlen(response), 0);
@@ -374,7 +389,7 @@ void *aceitar_novos_clientes() {
 }
 
 //Função teste que imprime todos os usuários cadastrados
-void imprimir_arquivos_na_pasta(const char* caminho) {
+void imprimir_arquivos_na_pasta(const char *caminho) {
     DIR *dir;
     struct dirent *ent;
 
@@ -392,7 +407,7 @@ void imprimir_arquivos_na_pasta(const char* caminho) {
         char caminho_completo[100];
         sprintf(caminho_completo, "%s/%s", caminho, ent->d_name);
 
-        FILE* fp = fopen(caminho_completo, "r");
+        FILE *fp = fopen(caminho_completo, "r");
         if (fp == NULL) {
             printf("Não foi possível abrir o arquivo %s\n", caminho_completo);
             continue;
