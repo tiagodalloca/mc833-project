@@ -158,19 +158,18 @@ const char *query_usuarios(const json_object *payload, const char *caminho) {
                     }
                 }
                 if (match) {
-                    // Se deu match, adiciona usuário na lista de resposta
-                    // Retrieve "nome" property from "user" object
-                    json_object *nome = NULL;
+                    // Se deu match, adiciona usuário (nome e email) na lista de resposta
+                    json_object *nome = NULL; //pega o nome
                     json_object_object_get_ex(user, "nome", &nome);
 
-                    // Retrieve "email" property from "user" object
-                    json_object *email = NULL;
+                    json_object *email = NULL; //pega o email
                     json_object_object_get_ex(user, "email", &email);
 
                     // Extract string values from retrieved properties
                     const char *nome_str = json_object_get_string(nome);
                     const char *email_str = json_object_get_string(email);
 
+                    // Cria novo objeto com email e nome e adicionar na lista de resposta
                     json_object *new_user = json_object_new_object();
                     json_object_object_add(new_user, "nome", nome);
                     json_object_object_add(new_user, "email", email);
